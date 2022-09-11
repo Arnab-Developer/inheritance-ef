@@ -8,15 +8,16 @@
     {
         private static void Main()
         {
-            IEmpService service = new EmpService(
-                new EmpRepo(
-                    new EmpContext(
-                        new DbContextOptionsBuilder<EmpContext>()
-                            .UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=empdb;Integrated Security=True")
-                            .Options)));
+            EmpContext context = new(new DbContextOptionsBuilder<EmpContext>()
+                .UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=empdb;Integrated Security=True")
+                .Options);
 
-            //service.CreateEmp("emp1");
-            service.CreateSeniorEmp("emp1");
+            IEmpService service = new EmpService(
+                new EmpRepo(context),
+                new SeniorEmpRepo(context));
+
+            service.CreateEmp("emp1");
+            service.CreateSeniorEmp("emp1", "mumbai");
         }
     }
 }
@@ -30,41 +31,41 @@ namespace ConsoleApp1.Services
     {
         public void CreateEmp(string name);
 
-        public void CreateSeniorEmp(string name);
+        public void CreateSeniorEmp(string name, string flatAddress);
     }
 
     public class EmpService : IEmpService
     {
         private readonly IEmpRepo _repo;
+        private readonly ISeniorEmpRepo _seniorEmpRepo;
 
-        public EmpService(IEmpRepo repo)
+        public EmpService(IEmpRepo empRepo, ISeniorEmpRepo seniorEmpRepo)
         {
-            _repo = repo;
+            _repo = empRepo;
+            _seniorEmpRepo = seniorEmpRepo;
         }
 
         void IEmpService.CreateEmp(string name)
         {
             Employee emp = new(name);
             PopulateBaseSal(emp);
-            SaveEmp(emp);
+
+            _repo.AddEmp(emp);
+            //_repo.Save();
         }
 
-        void IEmpService.CreateSeniorEmp(string name)
+        void IEmpService.CreateSeniorEmp(string name, string flatAddress)
         {
-            SeniorEmployee emp = new(name);
+            SeniorEmployee emp = new(name, flatAddress);
             PopulateBaseSal(emp);
-            SaveEmp(emp);
+
+            _seniorEmpRepo.AddEmp(emp);
+            _seniorEmpRepo.Save();
         }
 
         private static void PopulateBaseSal(Employee emp)
         {
             emp.CalculateBaseSal();
-        }
-
-        private void SaveEmp(Employee emp)
-        {
-            _repo.AddEmp(emp);
-            _repo.Save();
         }
     }
 }
@@ -92,9 +93,12 @@ namespace ConsoleApp1.Models
 
     public class SeniorEmployee : Employee
     {
-        public SeniorEmployee(string name)
+        public string FlatAddress { get; set; }
+
+        public SeniorEmployee(string name, string flatAddress)
             : base(name)
         {
+            FlatAddress = flatAddress;
         }
 
         public override void CalculateBaseSal()
@@ -114,10 +118,25 @@ namespace ConsoleApp1.Data
     {
         public DbSet<Employee> Employees { get; set; }
 
+        public DbSet<SeniorEmployee> SeniorEmployees { get; set; }
+
         public EmpContext(DbContextOptions<EmpContext> options)
             : base(options)
         {
             Employees = Set<Employee>();
+            SeniorEmployees = Set<SeniorEmployee>();
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            //modelBuilder.Entity<Employee>()
+            //    .Property("Discriminator")
+            //    .HasMaxLength(200);
+
+            modelBuilder.Entity<Employee>()
+                .HasDiscriminator<string>("emp_type")
+                .HasValue<Employee>("emp_normal")
+                .HasValue<SeniorEmployee>("emp_senior");
         }
     }
 
@@ -154,6 +173,33 @@ namespace ConsoleApp1.Data
         }
 
         void IEmpRepo.Save()
+        {
+            _context.SaveChanges();
+        }
+    }
+
+    public interface ISeniorEmpRepo
+    {
+        public void AddEmp(SeniorEmployee emp);
+
+        public void Save();
+    }
+
+    public class SeniorEmpRepo : ISeniorEmpRepo
+    {
+        private readonly EmpContext _context;
+
+        public SeniorEmpRepo(EmpContext context)
+        {
+            _context = context;
+        }
+
+        void ISeniorEmpRepo.AddEmp(SeniorEmployee emp)
+        {
+            _context.SeniorEmployees.Add(emp);
+        }
+
+        void ISeniorEmpRepo.Save()
         {
             _context.SaveChanges();
         }
