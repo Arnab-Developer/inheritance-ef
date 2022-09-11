@@ -1,1 +1,3 @@
-# ConsoleApp1
+# Inheritance with EF
+
+Inheritance with entity framework
