@@ -15,7 +15,8 @@
                             .UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=empdb;Integrated Security=True")
                             .Options)));
 
-            service.CreateEmp("emp1");
+            //service.CreateEmp("emp1");
+            service.CreateSeniorEmp("emp1");
         }
     }
 }
